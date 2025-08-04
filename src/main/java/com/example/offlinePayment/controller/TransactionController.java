@@ -35,6 +35,7 @@ public class TransactionController {
 
     @Autowired
     private WalletRepository walletRepository;
+    @Autowired
     private AdminRepository adminRepository;
 
 
