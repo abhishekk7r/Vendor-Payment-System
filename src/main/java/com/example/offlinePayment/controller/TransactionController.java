@@ -6,13 +6,13 @@ import com.example.offlinePayment.repository.UserRepository;
 import com.example.offlinePayment.repository.VendorRepository;
 import com.example.offlinePayment.repository.WalletRepository;
 import com.example.offlinePayment.repository.AdminRepository;
+import com.example.offlinePayment.service.ValidationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
 
 import lombok.Data;
 import org.springframework.web.bind.annotation.*;
@@ -38,16 +38,39 @@ public class TransactionController {
     @Autowired
     private AdminRepository adminRepository;
 
+    @Autowired
+    private ValidationService validationService;
+
 
 
     @PostMapping("/make-payment-online")
     public ResponseEntity<String> makePayment(@RequestBody PaymentRequestOnline paymentRequest) {
-        // Implement payment logic
+        // Validate input
+        if (!validationService.isValidUserId(paymentRequest.getUserId())) {
+            throw new IllegalArgumentException("Invalid user ID.");
+        }
+        if (!validationService.isValidVendorId(paymentRequest.getVendorId())) {
+            throw new IllegalArgumentException("Invalid vendor ID.");
+        }
+        if (!validationService.isValidAmount(paymentRequest.getAmount())) {
+            throw new IllegalArgumentException("Amount must be greater than 0.");
+        }
+        if (!validationService.isValidCoordinates(paymentRequest.getLatitude(), paymentRequest.getLongitude())) {
+            throw new IllegalArgumentException("Invalid coordinates.");
+        }
+
         User user = userRepository.findById(paymentRequest.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         Vendor vendor = vendorRepository.findById(paymentRequest.getVendorId())
                 .orElseThrow(() -> new RuntimeException("Vendor not found"));
+
+        // Check if user has sufficient balance
+        Wallet userWallet = user.getWallet();
+        if (userWallet == null || userWallet.getBalance() < paymentRequest.getAmount()) {
+            throw new IllegalArgumentException("Insufficient balance. Available: " + 
+                (userWallet != null ? userWallet.getBalance() : 0));
+        }
 
         // Check if the payment is within 20km radius
         if (!isWithinRadius(paymentRequest.getLatitude(), paymentRequest.getLongitude(), vendor.getLatitude(), vendor.getLongitude(), 20)) {
@@ -62,13 +85,8 @@ public class TransactionController {
 
             // Update user's wallet balance
             Wallet userWallet = user.getWallet();
-            userWallet.setBalance((long) (userWallet.getBalance() - paymentRequest.getAmount()));
+            userWallet.setBalance(userWallet.getBalance() - paymentRequest.getAmount());
             walletRepository.save(userWallet);
-//
-//            // Update vendor's wallet balance
-//            Wallet vendorWallet = vendor.getStoreWallet();
-//            vendorWallet.setBalance(vendorWallet.getBalance() + paymentRequest.getAmount());
-//            walletRepository.save(vendorWallet);
 
             // Save the transaction
             transactionRepository.save(transaction);
@@ -86,12 +104,12 @@ public class TransactionController {
 
             // Update user's wallet balance
             Wallet userWallet = user.getWallet();
-            userWallet.setBalance((long) (userWallet.getBalance() - paymentRequest.getAmount()));
+            userWallet.setBalance(userWallet.getBalance() - paymentRequest.getAmount());
             walletRepository.save(userWallet);
 
             // Update vendor's wallet balance
             Wallet vendorWallet = vendor.getStoreWallet();
-            vendorWallet.setBalance((long) (vendorWallet.getBalance() + paymentRequest.getAmount()));
+            vendorWallet.setBalance(vendorWallet.getBalance() + paymentRequest.getAmount());
             walletRepository.save(vendorWallet);
 
             // Save the transaction
@@ -105,13 +123,32 @@ public class TransactionController {
 
     @PostMapping("/make-payment-offline")
     public ResponseEntity<String> makePaymentOffline(@RequestBody PaymentRequestOffline paymentRequestOffline) {
-        // Implement offline payment logic
+        // Validate input
+        if (!validationService.isValidUserId(paymentRequestOffline.getUserId())) {
+            throw new IllegalArgumentException("Invalid user ID.");
+        }
+        if (!validationService.isValidVendorId(paymentRequestOffline.getVendorId())) {
+            throw new IllegalArgumentException("Invalid vendor ID.");
+        }
+        if (!validationService.isValidAmount(paymentRequestOffline.getAmount())) {
+            throw new IllegalArgumentException("Amount must be greater than 0.");
+        }
+        if (!validationService.isValidCoordinates(paymentRequestOffline.getLatitude(), paymentRequestOffline.getLongitude())) {
+            throw new IllegalArgumentException("Invalid coordinates.");
+        }
+
         User user = userRepository.findById(paymentRequestOffline.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         // Check if the provided code matches any of the codes in the user's set
-        if (!user.getWallet().getCodes().contains(paymentRequestOffline.getCode())) {
-            return ResponseEntity.badRequest().body("Invalid code. Transaction failed.");
+        if (user.getWallet() == null || !user.getWallet().getCodes().contains(paymentRequestOffline.getCode())) {
+            throw new IllegalArgumentException("Invalid code. Transaction failed.");
+        }
+
+        // Check if user has sufficient offline balance
+        if (user.getWallet().getOfflineBalance() < paymentRequestOffline.getAmount()) {
+            throw new IllegalArgumentException("Insufficient offline balance. Available: " + 
+                user.getWallet().getOfflineBalance());
         }
 
         Vendor vendor = vendorRepository.findById(paymentRequestOffline.getVendorId())

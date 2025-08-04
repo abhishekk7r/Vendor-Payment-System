@@ -81,6 +81,17 @@ mvn spring-boot:run
 
 The application will start on `http://localhost:8081`
 
+### Default Admin Credentials
+- **Username**: admin@example.com
+- **Password**: admin123
+
+### Testing the Application
+1. **Login**: POST `/auth/login` with admin credentials to get JWT token
+2. **Register User**: POST `/home/register` with user details
+3. **Approve User**: POST `/home/approve/{userId}`
+4. **Add Money**: POST `/api/wallets/add-money/{userId}?amount=100`
+5. **Make Payment**: POST `/api/transactions/make-payment-online`
+
 ## API Endpoints
 
 ### User Management
@@ -155,6 +166,23 @@ mvn test
 mvn clean package
 java -jar target/payment-0.0.1-SNAPSHOT.jar
 ```
+
+## Recent Improvements
+
+### ✅ Fixed Issues
+- **Data Persistence**: UserService now uses database instead of in-memory storage
+- **Input Validation**: Added comprehensive validation for all endpoints
+- **Exception Handling**: Global exception handler for consistent error responses
+- **Data Type Consistency**: Fixed casting issues between double and long
+- **Security Configuration**: Proper endpoint access control
+- **Code Quality**: Added proper logging and error messages
+
+### ✅ New Features
+- **Validation Service**: Centralized input validation
+- **Global Exception Handler**: Consistent error handling across all endpoints
+- **Enhanced API Responses**: More informative success/error messages
+- **Wallet Balance API**: Returns both online and offline balances
+- **Unit Tests**: Basic test coverage for core services
 
 ## Contributing
 

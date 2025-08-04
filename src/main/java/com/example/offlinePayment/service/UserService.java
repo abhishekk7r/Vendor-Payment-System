@@ -1,28 +1,23 @@
 package com.example.offlinePayment.service;
 
-//import org.springframework.security.core.userdetails.User;
-
-
 import com.example.offlinePayment.model.User;
+import com.example.offlinePayment.model.Wallet;
+import com.example.offlinePayment.repository.UserRepository;
+import com.example.offlinePayment.repository.WalletRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 @Service
 public class UserService {
 
-    private List<User> store = new ArrayList<>();
+    @Autowired
+    private UserRepository userRepository;
 
-//    public UserService() {
-//        store.add(new User(UUID.randomUUID().toString(), "Indrani", "ind@gmail.com"));
-//        store.add(new User(UUID.randomUUID().toString(), "Muskan", "mus@gmail.com"));
-//        store.add(new User(UUID.randomUUID().toString(), "Utkarsh", "utk@gmail.com"));
-//        store.add(new User(UUID.randomUUID().toString(), "Aditya", "adi@gmail.com"));
-//
-//
-//    }
+    @Autowired
+    private WalletRepository walletRepository;
 
     public String registerUser(String userName, String userEmail) {
         String userId = UUID.randomUUID().toString();
@@ -32,44 +27,49 @@ public class UserService {
                 .userEmail(userEmail)
                 .isApproved(false)
                 .approvalTimestamp(null)
+                .user_status(true)
+                .user_enrolled(false)
+                .user_enrollapproved(false)
                 .build();
-        store.add(newUser);
+        
+        // Create wallet for user
+        Wallet wallet = new Wallet(newUser);
+        newUser.setWallet(wallet);
+        
+        // Save user (wallet will be saved due to cascade)
+        userRepository.save(newUser);
         return userId;
     }
 
     public void approveUser(String userId) {
-        for (User user : store) {
-            if (user.getUserId().equals(userId)) {
-                user.setApproved(true);
-                user.setApprovalTimestamp(System.currentTimeMillis());
-                break;
-            }
-        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        user.setApproved(true);
+        user.setApprovalTimestamp(System.currentTimeMillis());
+        userRepository.save(user);
     }
 
     public boolean isUserApproved(String userId) {
-        for (User user : store) {
-            if (user.getUserId().equals(userId)) {
-                return user.isApproved();
-            }
-        }
-        return false;
+        User user = userRepository.findById(userId)
+                .orElse(null);
+        return user != null && user.isApproved();
     }
 
     public boolean isWaitingPeriodOver(String userId, int waitingPeriodMinutes) {
-        for (User user : store) {
-            if (user.getUserId().equals(userId) && user.isApproved()) {
-                long currentTimeMillis = System.currentTimeMillis();
-                long approvalTimestamp = user.getApprovalTimestamp();
-                long waitingPeriodMillis = waitingPeriodMinutes * 60 * 1000L;
-                return (currentTimeMillis - approvalTimestamp) >= waitingPeriodMillis;
-            }
+        User user = userRepository.findById(userId)
+                .orElse(null);
+        
+        if (user != null && user.isApproved() && user.getApprovalTimestamp() != null) {
+            long currentTimeMillis = System.currentTimeMillis();
+            long approvalTimestamp = user.getApprovalTimestamp();
+            long waitingPeriodMillis = waitingPeriodMinutes * 60 * 1000L;
+            return (currentTimeMillis - approvalTimestamp) >= waitingPeriodMillis;
         }
         return false;
     }
 
-
     public List<User> getUsers() {
-        return this.store;
+        return userRepository.findAll();
     }
 }

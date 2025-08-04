@@ -4,10 +4,10 @@ import com.example.offlinePayment.model.User;
 import com.example.offlinePayment.model.Wallet;
 import com.example.offlinePayment.repository.UserRepository;
 import com.example.offlinePayment.repository.WalletRepository;
+import com.example.offlinePayment.service.ValidationService;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashSet;
@@ -23,12 +23,22 @@ public class WalletController {
     @Autowired
     private UserRepository userRepository;
 
-    private double offlineBalance;
+    @Autowired
+    private ValidationService validationService;
 
     @PostMapping("/add-money/{userId}")
     public ResponseEntity<String> addMoneyToWallet(
             @PathVariable("userId") String userId,
             @RequestParam("amount") Double amount) {
+        
+        if (!validationService.isValidUserId(userId)) {
+            throw new IllegalArgumentException("Invalid user ID.");
+        }
+        
+        if (!validationService.isValidAmount(amount)) {
+            throw new IllegalArgumentException("Amount must be greater than 0.");
+        }
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -38,40 +48,66 @@ public class WalletController {
             user.setWallet(wallet);
         }
 
-        wallet.setBalance((long) (wallet.getBalance() + amount));
+        wallet.setBalance(wallet.getBalance() + amount);
         walletRepository.save(wallet);
 
-        return ResponseEntity.ok("Money added to wallet successfully.");
+        return ResponseEntity.ok("Money added to wallet successfully. New balance: " + wallet.getBalance());
     }
 
     @GetMapping("/check-balance/{userId}")
-    public ResponseEntity<Double> checkWalletBalance(@PathVariable("userId") int userId) {
-        User user = userRepository.findById(String.valueOf(userId))
+    public ResponseEntity<WalletBalanceResponse> checkWalletBalance(@PathVariable("userId") String userId) {
+        if (!validationService.isValidUserId(userId)) {
+            throw new IllegalArgumentException("Invalid user ID.");
+        }
+
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         Wallet wallet = user.getWallet();
         if (wallet == null) {
-            return ResponseEntity.ok(0.0);
+            return ResponseEntity.ok(new WalletBalanceResponse(0.0, 0.0));
         }
 
-        return ResponseEntity.ok((double) wallet.getBalance());
+        return ResponseEntity.ok(new WalletBalanceResponse(wallet.getBalance(), wallet.getOfflineBalance()));
+    }
+
+    public static class WalletBalanceResponse {
+        private double onlineBalance;
+        private double offlineBalance;
+
+        public WalletBalanceResponse(double onlineBalance, double offlineBalance) {
+            this.onlineBalance = onlineBalance;
+            this.offlineBalance = offlineBalance;
+        }
+
+        public double getOnlineBalance() { return onlineBalance; }
+        public double getOfflineBalance() { return offlineBalance; }
     }
 
     @PostMapping("/transfer-to-offline/{userId}")
     public ResponseEntity<String> transferMoney(
-            @PathVariable("userId") int userId,
+            @PathVariable("userId") String userId,
             @RequestParam("amount") Double amount) {
-        User user =userRepository.findById(String.valueOf(userId))
+        
+        if (!validationService.isValidUserId(userId)) {
+            throw new IllegalArgumentException("Invalid user ID.");
+        }
+        
+        if (!validationService.isValidAmount(amount)) {
+            throw new IllegalArgumentException("Amount must be greater than 0.");
+        }
+
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         Wallet wallet = user.getWallet();
         if (wallet == null) {
-            return ResponseEntity.badRequest().body("Wallet not found for the user.");
+            throw new RuntimeException("Wallet not found for the user.");
         }
 
         // Check if there is enough balance to transfer
         if (wallet.getBalance() < amount) {
-            return ResponseEntity.badRequest().body("Insufficient funds in the wallet.");
+            throw new IllegalArgumentException("Insufficient funds in the wallet. Available balance: " + wallet.getBalance());
         }
 
         if (wallet.getCodes().isEmpty()) {
@@ -83,7 +119,7 @@ public class WalletController {
         wallet.setOfflineBalance(wallet.getOfflineBalance() + amount);
         walletRepository.save(wallet);
 
-        return ResponseEntity.ok("Money transferred successfully.");
+        return ResponseEntity.ok("Money transferred successfully. Offline balance: " + wallet.getOfflineBalance());
     }
 
     private void generateAndAddCodes(Wallet wallet) {

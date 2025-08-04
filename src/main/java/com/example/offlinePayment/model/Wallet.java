@@ -29,24 +29,26 @@ public class Wallet {
     private Set<String> codes = new HashSet<>();
 
     private double balance;
-    double offlineBalance;
+    private double offlineBalance;
     //@OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
-    public Wallet(User user)
-    {
-        this.user=user;
-        this.balance=Double.valueOf(0);
-        this.offlineBalance=Double.valueOf(0);
-
+    public Wallet(User user) {
+        this.user = user;
+        this.balance = 0.0;
+        this.offlineBalance = 0.0;
+        this.codes = new HashSet<>();
     }
-    public Wallet(int walletId)
-    {
-        this.walletId=walletId;
+    
+    public Wallet(int walletId) {
+        this.walletId = walletId;
+        this.balance = 0.0;
+        this.offlineBalance = 0.0;
+        this.codes = new HashSet<>();
     }
-    public Wallet()
-    {
-        this.setBalance(Double.valueOf(0));
-        this.setOfflineBalance(Double.valueOf(0));
-
+    
+    public Wallet() {
+        this.balance = 0.0;
+        this.offlineBalance = 0.0;
+        this.codes = new HashSet<>();
     }
 
 
