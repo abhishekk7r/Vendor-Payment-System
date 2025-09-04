@@ -84,9 +84,9 @@ public class TransactionController {
 
 
             // Update user's wallet balance
-            Wallet userWallet = user.getWallet();
-            userWallet.setBalance(userWallet.getBalance() - paymentRequest.getAmount());
-            walletRepository.save(userWallet);
+            Wallet userWallet2 = user.getWallet();
+            userWallet2.setBalance(userWallet2.getBalance() - paymentRequest.getAmount());
+            walletRepository.save(userWallet2);
 
             // Save the transaction
             transactionRepository.save(transaction);
